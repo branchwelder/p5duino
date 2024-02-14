@@ -1,56 +1,66 @@
-let port, connectBtn, circleDiameter;
+const BAUD_RATE = 9600; // This should match the baud rate in your Arduino sketch
+const MIN_DIAMETER = 10;
+const MAX_DIAMETER = 40;
 
-const BAUD_RATE = 9600;
+let port, connectBtn; // Declare global variables
 
 function setup() {
-  createCanvas(windowWidth, windowHeight); // Create a canvas that is the size of our browser window
-  background("gray"); // Set the background to gray initially
+  setupSerial(); // Run our serial setup function (below)
 
-  port = createSerial();
-
-  // in setup, we can open ports we have used previously without user interaction
-  let usedPorts = usedSerialPorts();
-  if (usedPorts.length > 0) {
-    port.open(usedPorts[0], BAUD_RATE);
-  }
-
-  circleDiameter = min(windowWidth, windowHeight) * 0.5;
-
-  // any other ports can be opened via a dialog after
-  // user interaction (see connectBtnClick below)
-  connectBtn = createButton("Connect to Arduino");
-  connectBtn.position(5, 5);
-  connectBtn.mouseClicked(onConnectButtonClicked);
+  // Create a canvas that is the size of our browser window.
+  // windowWidth and windowHeight are p5 variables
+  createCanvas(windowWidth, windowHeight);
 }
 
 function draw() {
-  // First, we check if the port is open
+  const portIsOpen = checkPort(); // Check whether the port is open (see checkPort function below)
+  if (!portIsOpen) return; // If the port is not open, exit the draw loop
+
+  let str = port.readUntil("\n"); // Read from the port until the newline
+  if (str.length == 0) return; // If we didn't read anything, return.
+
+  let arr = str.trim().split(","); // Trim whitespace and split on commas
+
+  // Convert each element to a number and map it to the desired range
+  let x = map(Number(arr[0]), 512, 1023, 0, windowWidth);
+  let y = map(Number(arr[1]), 512, 1023, 0, windowHeight);
+  let diameter = map(Number(arr[2]), 512, 1023, MIN_DIAMETER, MAX_DIAMETER);
+
+  // Draw a circle using our readings
+  circle(x, y, diameter);
+}
+
+// Three helper functions for managing the serial connection.
+
+function setupSerial() {
+  port = createSerial();
+
+  // Check to see if there are any ports we have used previously
+  let usedPorts = usedSerialPorts();
+  if (usedPorts.length > 0) {
+    // If there are ports we've used, open the first one
+    port.open(usedPorts[0], BAUD_RATE);
+  }
+
+  // create a connect button
+  connectBtn = createButton("Connect to Arduino");
+  connectBtn.position(5, 5); // Position the button in the top left of the screen.
+  connectBtn.mouseClicked(onConnectButtonClicked); // When the button is clicked, run the onConnectButtonClicked function
+}
+
+function checkPort() {
   if (!port.opened()) {
-    // If it is not, change button text
+    // If the port is not open, change button text
     connectBtn.html("Connect to Arduino");
     // Set background to gray
     background("gray");
-    // And return (to not read anything from the port)
-    return;
+    return false;
   } else {
     // Otherwise we are connected
     connectBtn.html("Disconnect");
+
+    return true;
   }
-
-  let str = port.readUntil("\n"); // Read from the port until the newline
-  if (str.length == 0) return; // If we didn't read anything, return
-
-  let rgbArray = str.split(",");
-
-  let x = Number(rgbArray[0]);
-  let y = Number(rgbArray[1]);
-  let diameter = Number(rgbArray[2]);
-
-  let xPos = map(x, 512, 1023, 0, windowWidth);
-  let yPos = map(y, 512, 1023, 0, windowHeight);
-  let circleDiam = map(diameter, 512, 1023, 10, 40);
-
-  circle(xPos, yPos, circleDiam);
 }
 
 function onConnectButtonClicked() {
